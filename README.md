@@ -1,2 +1,0 @@
-# read-cbz
-.cbz reader
