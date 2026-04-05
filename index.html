@@ -15,7 +15,7 @@
             --text-muted: rgba(236, 246, 255, 0.78);
             --accent: #7bd4ff;
             --image-zoom: 1;
-            --button-scale: 1;
+            --button-scale: 0.85;
         }
         body {
             font-family: "Nunito", "Quicksand", "Segoe UI Rounded", "Avenir Next Rounded", "Segoe UI", Tahoma, sans-serif;
@@ -382,7 +382,7 @@
         <div id="hover-hint">Hover the Mouse here to see Buttons</div>
         <div id="tips-dropdown" aria-label="Tips">
             <div id="tips-trigger">Tips</div>
-            <div id="tips-content">Use Control plus "-" or "+" to zoom</div>
+            <div id="tips-content">For Zooming:<br>1. Use Control + "-" or "+"<br>2. Use Control + Mouse Wheel + </div>
         </div>
         <div id="header">
             <h1>CHAASH Ka Reader</h1>
@@ -557,6 +557,13 @@
         tipsDropdown.addEventListener('mouseenter', showUiForAWhile);
 
         const viewer = document.getElementById('viewer');
+
+        viewer.addEventListener('wheel', (e) => {
+            if (!(e.ctrlKey || e.metaKey)) return;
+            e.preventDefault();
+            const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
+            setImageZoom(imageZoom * zoomFactor);
+        }, { passive: false });
         
         viewer.addEventListener('mousedown', (e) => {
             if (e.button === 1 && readingMode === 'vertical') {
@@ -728,6 +735,8 @@
             applyModeClass();
 
             if (readingMode === 'vertical') {
+                imageZoom = 1;
+                document.documentElement.style.setProperty('--image-zoom', imageZoom);
                 renderVerticalPages();
                 viewer.scrollTop = 0;
             }
