@@ -13,24 +13,44 @@
             --text-color: #ecf6ff;
             --text-muted: rgba(236, 246, 255, 0.78);
             --accent: #7bd4ff;
+            --button-scale: 1;
         }
         body {
             font-family: "Segoe UI", Tahoma, sans-serif;
-            background: radial-gradient(circle at 18% 12%, #2e4466 0%, #181f32 42%, #0a0d14 100%);
+            background: transparent;
             color: var(--text-color);
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
         }
-        html, body { scroll-behavior: smooth; }
-        #container { max-width: 100%; height: 100vh; display: flex; flex-direction: column; }
+        html, body { scroll-behavior: smooth; margin: 0; }
+        #container { max-width: 100%; height: 100vh; width: 100%; position: relative; margin: 0; }
         #header {
+            position: fixed;
+            top: 12px;
+            left: 12px;
             background: var(--glass-bg);
             backdrop-filter: blur(12px) saturate(140%);
             -webkit-backdrop-filter: blur(12px) saturate(140%);
-            padding: 8px;
-            text-align: center;
-            border-bottom: 1px solid var(--glass-border);
+            padding: 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            z-index: 10;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transform: scale(var(--button-scale));
+            transform-origin: top left;
         }
-        #header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.4px; margin-bottom: 6px; }
-        #viewer { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; position: relative; }
+        #header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.3px; margin: 0; }
+        #header-tools {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+        }
+        #viewer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; position: relative; }
         #viewer.mode-vertical {
             display: block;
             overflow-y: auto;
@@ -43,7 +63,7 @@
         #viewer.mode-vertical #image { display: none; }
         #vertical-pages { display: none; width: min(100%, 1000px); margin: 0 auto; padding: 0 12px; }
         #viewer.mode-vertical #vertical-pages { display: block; }
-        .vertical-page { width: 100%; height: auto; display: block; background: #000; }
+        .vertical-page { width: 100%; height: auto; display: block; background: #000; margin: 0 auto; }
         .page-separator {
             height: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.22);
@@ -51,19 +71,26 @@
             opacity: 0.8;
         }
         #controls {
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
             background: var(--glass-bg);
             backdrop-filter: blur(12px) saturate(140%);
             -webkit-backdrop-filter: blur(12px) saturate(140%);
-            padding: 8px;
+            padding: 10px;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
             display: flex;
-            gap: 8px;
-            justify-content: center;
-            align-items: center;
-            border-top: 1px solid var(--glass-border);
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 320px;
+            z-index: 10;
+            transform: scale(var(--button-scale));
+            transform-origin: bottom left;
         }
         button,
-        input[type="file"],
+        .action-link,
+        .file-pick-btn,
         #page-input {
             background: var(--glass-bg-strong);
             border: 1px solid var(--glass-border);
@@ -74,20 +101,54 @@
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 5px 16px rgba(0, 0, 0, 0.22);
             transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
             font-size: 12px;
+            pointer-events: auto;
         }
         button {
             padding: 5px 10px;
             cursor: pointer;
             min-height: 30px;
         }
+        .action-link {
+            padding: 5px 10px;
+            min-height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            white-space: nowrap;
+            width: 100%;
+        }
+        .file-pick-btn {
+            padding: 5px 12px;
+            min-height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            cursor: pointer;
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         button:hover {
             background: rgba(255, 255, 255, 0.2);
             border-color: rgba(255, 255, 255, 0.35);
             transform: translateY(-1px);
         }
+        .action-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+        }
+        .file-pick-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+        }
         button:focus,
+        .action-link:focus,
         #page-input:focus,
-        input[type="file"]:focus {
+        .file-pick-btn:focus {
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 2px rgba(123, 212, 255, 0.2);
@@ -97,24 +158,13 @@
             cursor: not-allowed;
             transform: none;
         }
-        input[type="file"] {
-            padding: 4px 9px;
-            max-width: 220px;
-        }
-        input[type="file"]::file-selector-button {
-            border: 1px solid var(--glass-border);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.16);
-            color: var(--text-color);
-            padding: 4px 8px;
-            margin-right: 8px;
-            font-size: 11px;
-            cursor: pointer;
-        }
-        #info { font-size: 12px; margin: 0 6px; color: var(--text-muted); }
-        #page-input { width: 52px; padding: 4px 7px; text-align: center; min-height: 30px; }
+        #cbz-input { display: none; }
+        #info { font-size: 11px; color: var(--text-muted); padding: 2px 4px; }
+        #page-input { width: 100%; padding: 4px 7px; text-align: center; min-height: 30px; }
+        #controls > div { display: flex; gap: 6px; }
+        #controls button { flex: 1; }
         #chapter-toast {
-            position: absolute;
+            position: fixed;
             top: 12px;
             right: 12px;
             background: rgba(15, 23, 38, 0.72);
@@ -130,15 +180,48 @@
             transform: translateY(-6px);
             pointer-events: none;
             transition: opacity 0.25s ease, transform 0.25s ease;
-            z-index: 5;
+            z-index: 9;
         }
         #chapter-toast.show {
             opacity: 1;
             transform: translateY(0);
         }
 
-        @media (max-width: 860px) {
-            #header h1 { font-size: 15px; }
+        @media (max-width: 640px) {
+            #header {
+                max-width: calc(100vw - 24px);
+                left: 12px;
+            }
+            #controls {
+                max-width: calc(100vw - 24px);
+                left: 12px;
+            }
+        }
+        
+        #header.faded,
+        #controls.faded {
+            opacity: 0.65;
+            transition: opacity 0.3s ease;
+        }
+        
+        #header:hover,
+        #controls:hover,
+        #header.faded:hover,
+        #controls.faded:hover {
+            opacity: 1;
+        }
+        
+        #header.faded,
+        #controls.faded {
+            opacity: 0.65;
+            transition: opacity 0.3s ease;
+        }
+        
+        #header:hover,
+        #controls:hover,
+        #header.faded:hover,
+        #controls.faded:hover {
+            opacity: 1;
         }
     </style>
 </head>
@@ -147,6 +230,10 @@
         <div id="header">
             <h1>CHAASH Ka Reader</h1>
             <input type="file" id="cbz-input" accept=".cbz" />
+            <label class="file-pick-btn" id="file-pick-btn" for="cbz-input" tabindex="0">Browse CBZ</label>
+            <a class="action-link" href="https://drive.google.com/drive/u/0/folders/1jhcTYjjNXJ-q_6ND-VvyaViaAnFs-xJu" target="_blank" rel="noopener noreferrer">Manga Folder</a>
+            <a class="action-link" href="https://www.viz.com/shonenjump/chapters/one-piece" target="_blank" rel="noopener noreferrer">Official Release</a>
+            <a class="action-link" href="https://www.reddit.com/r/OnePiece/?f=flair_name%3A%22Current%20Chapter%22" target="_blank" rel="noopener noreferrer">Reddit Reviews</a>
         </div>
         <div id="viewer">
             <img id="image" alt="Manga Page" />
@@ -154,12 +241,20 @@
             <div id="chapter-toast"></div>
         </div>
         <div id="controls">
-            <button id="prev-btn" onclick="prevPage()">← Previous</button>
+            <div>
+                <button id="prev-btn" onclick="prevPage()">← Prev</button>
+                <button id="next-btn" onclick="nextPage()">Next →</button>
+            </div>
             <input type="number" id="page-input" min="1" onkeypress="if(event.key==='Enter') goToPage()" />
-            <button id="goto-btn" onclick="goToPage()">Go</button>
-            <button id="mode-btn" onclick="toggleReadingMode()">Mode: Single</button>
+            <div>
+                <button id="goto-btn" onclick="goToPage()">Go</button>
+                <button id="mode-btn" onclick="toggleReadingMode()">Mode: Single</button>
+            </div>
             <span id="info">Page 1 of 1</span>
-            <button id="next-btn" onclick="nextPage()">Next →</button>
+            <div>
+                <button id="zoom-out-btn" onclick="decreaseButtonSize()">Size −</button>
+                <button id="zoom-in-btn" onclick="increaseButtonSize()">Size +</button>
+            </div>
         </div>
     </div>
 
@@ -173,10 +268,28 @@
         let smoothScrollTarget = 0;
         let smoothScrollFrame = null;
         let chapterToastTimer = null;
+        let buttonScale = 1;
+        const cbzInput = document.getElementById('cbz-input');
+        const filePickBtn = document.getElementById('file-pick-btn');
+        const header = document.getElementById('header');
+        const controls = document.getElementById('controls');
+        
+        function increaseButtonSize() {
+            buttonScale = Math.min(1.5, buttonScale + 0.1);
+            document.documentElement.style.setProperty('--button-scale', buttonScale);
+        }
+        
+        function decreaseButtonSize() {
+            buttonScale = Math.max(0.7, buttonScale - 0.1);
+            document.documentElement.style.setProperty('--button-scale', buttonScale);
+        }
 
-        document.getElementById('cbz-input').addEventListener('change', async (e) => {
+        cbzInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+
+            filePickBtn.textContent = file.name;
+            filePickBtn.title = file.name;
 
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -184,8 +297,55 @@
             document.head.appendChild(script);
         });
 
+        filePickBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                cbzInput.click();
+            }
+        });
+        
+        document.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        // Initialize panels with faded state (50% opacity by default)
+        header.classList.add('faded');
+        controls.classList.add('faded');
+        
+        // Simple hover-based fade toggle
+        header.addEventListener('mouseenter', () => header.classList.remove('faded'));
+        header.addEventListener('mouseleave', () => header.classList.add('faded'));
+        
+        controls.addEventListener('mouseenter', () => controls.classList.remove('faded'));
+        controls.addEventListener('mouseleave', () => controls.classList.add('faded'));
+
         const viewer = document.getElementById('viewer');
-        viewer.addEventListener('wheel', onVerticalWheel, { passive: false });
+        viewer.addEventListener('wheel', (e) => {
+            onVerticalWheel(e);
+        }, { passive: false });
+        
+        viewer.addEventListener('mousedown', (e) => {
+            if (e.button === 1 && readingMode === 'vertical') {
+                e.preventDefault();
+                const startY = e.clientY;
+                const startScroll = viewer.scrollTop;
+                
+                function onMouseMove(moveEvent) {
+                    const deltaY = moveEvent.clientY - startY;
+                    viewer.scrollTop = startScroll - deltaY;
+                }
+                
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                }
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            }
+        }, { passive: false });
 
         function onVerticalWheel(e) {
             if (readingMode !== 'vertical') return;
@@ -496,7 +656,7 @@
             if (readingMode !== 'vertical') return;
             displayPage();
         });
-
+        
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevPage();
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextPage();
