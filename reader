@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AanduGaandu Reader</title>
+    <title>CHAASH Ka Reader</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -113,18 +113,6 @@
         }
         #info { font-size: 12px; margin: 0 6px; color: var(--text-muted); }
         #page-input { width: 52px; padding: 4px 7px; text-align: center; min-height: 30px; }
-        #header > div {
-            display: flex;
-            gap: 6px;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-top: 4px;
-        }
-        #drive-url {
-            max-width: 280px;
-            padding: 4px 9px;
-        }
         #chapter-toast {
             position: absolute;
             top: 12px;
@@ -157,14 +145,8 @@
 <body>
     <div id="container">
         <div id="header">
-            <h1>AanduGaandu Reader</h1>
-            <div>
-                <input type="file" id="cbz-input" accept=".cbz" />
-                <div style="display: flex; gap: 4px; align-items: center;">
-                    <input type="text" id="drive-url" placeholder="Google Drive CBZ link" />
-                    <button id="drive-load-btn" onclick="loadFromGoogleDrive()">Load</button>
-                </div>
-            </div>
+            <h1>CHAASH Ka Reader</h1>
+            <input type="file" id="cbz-input" accept=".cbz" />
         </div>
         <div id="viewer">
             <img id="image" alt="Manga Page" />
@@ -201,145 +183,6 @@
             script.onload = () => loadCBZ(file);
             document.head.appendChild(script);
         });
-
-        async function loadFromGoogleDrive() {
-            const urlInput = document.getElementById('drive-url');
-            const driveUrl = urlInput.value.trim();
-            if (!driveUrl) {
-                alert('Please enter a Google Drive URL');
-                return;
-            }
-
-            try {
-                document.getElementById('drive-load-btn').disabled = true;
-                document.getElementById('drive-load-btn').textContent = 'Loading...';
-
-                const driveInfo = extractGoogleDriveInfo(driveUrl);
-                if (!driveInfo.fileId) {
-                    alert('Invalid Google Drive URL. Please use a full sharing link or file link.');
-                    document.getElementById('drive-load-btn').disabled = false;
-                    document.getElementById('drive-load-btn').textContent = 'Load';
-                    return;
-                }
-
-                const resourceKeyPart = driveInfo.resourceKey ? `&resourcekey=${encodeURIComponent(driveInfo.resourceKey)}` : '';
-                const baseCandidates = [
-                    `https://drive.usercontent.google.com/download?id=${driveInfo.fileId}&export=download&confirm=t${resourceKeyPart}`,
-                    `https://drive.google.com/uc?id=${driveInfo.fileId}&export=download&confirm=t${resourceKeyPart}`,
-                    `https://drive.google.com/uc?export=download&id=${driveInfo.fileId}${resourceKeyPart}`
-                ];
-
-                const proxyPrefixes = [
-                    'https://api.allorigins.win/raw?url=',
-                    'https://corsproxy.io/?',
-                    'https://cors-anywhere.herokuapp.com/',
-                    'https://thingproxy.freeboard.io/fetch/'
-                ];
-
-                const candidates = [...baseCandidates];
-                for (const prefix of proxyPrefixes) {
-                    for (const baseUrl of baseCandidates) {
-                        candidates.push(`${prefix}${encodeURIComponent(baseUrl)}`);
-                    }
-                }
-
-                let blob = null;
-
-                for (const candidate of candidates) {
-                    try {
-                        const response = await fetch(candidate);
-                        if (!response.ok) continue;
-
-                        const candidateBlob = await response.blob();
-                        const contentType = candidateBlob.type || '';
-                        const isHtml = contentType.includes('text/html');
-                        if (candidateBlob.size > 1024 && !isHtml) {
-                            blob = candidateBlob;
-                            break;
-                        }
-                    } catch (e) {
-                        // Try the next candidate URL.
-                    }
-                }
-
-                if (!blob || blob.size === 0) {
-                    try {
-                        blob = await tryXMLHttpRequest(baseCandidates[0]);
-                    } catch (e) {
-                        // XMLHttpRequest also failed
-                    }
-                }
-
-                if (!blob || blob.size === 0) {
-                    const downloadUrl = `https://drive.google.com/uc?export=download&id=${driveInfo.fileId}${resourceKeyPart}`;
-                    const message = `Could not auto-download due to browser CORS restrictions.\n\nClick OK to open Drive's download page, then upload the downloaded CBZ file to this reader.`;
-                    if (confirm(message)) {
-                        window.open(downloadUrl, '_blank');
-                    }
-                    document.getElementById('drive-load-btn').disabled = false;
-                    document.getElementById('drive-load-btn').textContent = 'Load';
-                    return;
-                }
-
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-                script.onload = () => loadCBZ(blob, driveUrl);
-                document.head.appendChild(script);
-
-                urlInput.value = '';
-            } catch (err) {
-                alert('Error loading from Google Drive: ' + err.message);
-                document.getElementById('drive-load-btn').disabled = false;
-                document.getElementById('drive-load-btn').textContent = 'Load';
-            }
-        }
-
-        function tryXMLHttpRequest(url) {
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('GET', url, true);
-                xhr.responseType = 'blob';
-                xhr.onload = function() {
-                    if (xhr.status === 200 && xhr.response.size > 1024) {
-                        resolve(xhr.response);
-                    } else {
-                        reject(new Error('XHR failed or empty response'));
-                    }
-                };
-                xhr.onerror = () => reject(new Error('XHR network error'));
-                xhr.ontimeout = () => reject(new Error('XHR timeout'));
-                xhr.timeout = 15000;
-                xhr.send();
-            });
-        }
-
-        function extractGoogleDriveInfo(url) {
-            const trimmed = url.trim();
-            const info = { fileId: null, resourceKey: null };
-
-            try {
-                const parsed = new URL(trimmed);
-                const pathnameMatch = parsed.pathname.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
-                if (pathnameMatch && pathnameMatch[1]) {
-                    info.fileId = pathnameMatch[1];
-                }
-
-                if (!info.fileId) {
-                    const idParam = parsed.searchParams.get('id');
-                    if (idParam) info.fileId = idParam;
-                }
-
-                const resourceKey = parsed.searchParams.get('resourcekey');
-                if (resourceKey) info.resourceKey = resourceKey;
-            } catch (e) {
-                const rawIdMatch = trimmed.match(/^\s*([a-zA-Z0-9-_]+)\s*$/);
-                if (rawIdMatch && rawIdMatch[1]) {
-                    info.fileId = rawIdMatch[1];
-                }
-            }
-
-            return info;
-        }
 
         const viewer = document.getElementById('viewer');
         viewer.addEventListener('wheel', onVerticalWheel, { passive: false });
@@ -408,12 +251,8 @@
                 } else {
                     alert('No images found in CBZ file');
                 }
-                document.getElementById('drive-load-btn').disabled = false;
-                document.getElementById('drive-load-btn').textContent = 'Load';
             } catch (err) {
                 alert('Error reading CBZ file: ' + err.message);
-                document.getElementById('drive-load-btn').disabled = false;
-                document.getElementById('drive-load-btn').textContent = 'Load';
             }
         }
 
