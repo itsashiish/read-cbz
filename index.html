@@ -56,6 +56,7 @@
         #viewer.mode-vertical {
             display: block;
             overflow-y: auto;
+            overflow-x: auto;
             padding: 14px 0 20px;
             scroll-behavior: auto;
             -webkit-overflow-scrolling: touch;
@@ -64,8 +65,8 @@
         #image { max-width: 100%; max-height: 100%; object-fit: contain; transform: scale(var(--image-zoom)); transform-origin: center; }
         #viewer.mode-vertical #image { display: none; }
         #vertical-pages { display: none; width: min(100%, 1000px); margin: 0 auto; padding: 0 12px; }
-        #viewer.mode-vertical #vertical-pages { display: block; }
-        .vertical-page { width: calc(100% * var(--image-zoom)); height: auto; display: block; background: #000; margin: 6px auto; }
+        #viewer.mode-vertical #vertical-pages { display: flex; flex-direction: column; align-items: center; }
+        .vertical-page { width: calc(100% * var(--image-zoom)); height: auto; display: block; background: #000; margin: 6px 0; }
         #controls {
             position: fixed;
             bottom: 12px;
@@ -283,6 +284,24 @@
             opacity: 1;
             transform: translateY(0);
         }
+        #hover-hint {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 12;
+            background: rgba(15, 23, 38, 0.74);
+            border: 1px solid rgba(123, 212, 255, 0.42);
+            color: #dff4ff;
+            border-radius: 10px;
+            padding: 7px 11px;
+            font-size: 12px;
+            letter-spacing: 0.15px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
 
         @media (max-width: 640px) {
             #header {
@@ -320,10 +339,47 @@
         #controls.faded:hover {
             opacity: 1;
         }
+
+        body.file-loaded-ui-hide #header,
+        body.file-loaded-ui-hide #controls,
+        body.file-loaded-ui-hide #tips-dropdown {
+            opacity: 0.08;
+            transition: opacity 0.18s ease;
+        }
+
+        body.file-loaded-ui-hide.ui-awake #header,
+        body.file-loaded-ui-hide.ui-awake #controls,
+        body.file-loaded-ui-hide.ui-awake #tips-dropdown {
+            opacity: 1;
+        }
+
+        body.file-loaded-ui-hide.ui-awake button,
+        body.file-loaded-ui-hide.ui-awake .action-link,
+        body.file-loaded-ui-hide.ui-awake .file-pick-btn,
+        body.file-loaded-ui-hide.ui-awake #page-input {
+            opacity: 1;
+        }
+
+        body.file-loaded-ui-hide:not(.ui-awake) #hover-hint {
+            opacity: 1;
+        }
+
+        body.file-loaded-ui-hide.ui-awake #hover-hint {
+            opacity: 0;
+        }
+
+        body.file-loaded-ui-hide #header:hover,
+        body.file-loaded-ui-hide #controls:hover,
+        body.file-loaded-ui-hide #tips-dropdown:hover,
+        body.file-loaded-ui-hide #header.faded:hover,
+        body.file-loaded-ui-hide #controls.faded:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
     <div id="container">
+        <div id="hover-hint">Hover the Mouse here to see Buttons</div>
         <div id="tips-dropdown" aria-label="Tips">
             <div id="tips-trigger">Tips</div>
             <div id="tips-content">Use Control plus "-" or "+" to zoom</div>
@@ -375,10 +431,23 @@
         let imageZoom = 1;
         let buttonScale = 1;
         let hasLoadedFile = false;
+        let uiHideTimer = null;
         const cbzInput = document.getElementById('cbz-input');
         const filePickBtn = document.getElementById('file-pick-btn');
         const header = document.getElementById('header');
         const controls = document.getElementById('controls');
+        const tipsDropdown = document.getElementById('tips-dropdown');
+
+        function showUiForAWhile() {
+            if (!hasLoadedFile) return;
+            document.body.classList.add('ui-awake');
+            if (uiHideTimer) {
+                clearTimeout(uiHideTimer);
+            }
+            uiHideTimer = setTimeout(() => {
+                document.body.classList.remove('ui-awake');
+            }, 3000);
+        }
         
         function increaseButtonSize() {
             buttonScale = Math.min(1.5, buttonScale + 0.1);
@@ -389,7 +458,7 @@
             buttonScale = Math.max(0.7, buttonScale - 0.1);
             document.documentElement.style.setProperty('--button-scale', buttonScale);
         }
-        
+
         function setImageZoom(factor) {
             const nextZoom = Math.max(0.5, Math.min(3, factor));
             if (nextZoom === imageZoom) return;
@@ -444,6 +513,8 @@
             if (!file) return;
 
             hasLoadedFile = true;
+            document.body.classList.add('file-loaded-ui-hide');
+            showUiForAWhile();
             filePickBtn.classList.remove('needs-file');
             filePickBtn.textContent = file.name;
             filePickBtn.title = file.name;
@@ -467,7 +538,7 @@
                 e.preventDefault();
             }
         }, { passive: false });
-        
+
         // Initialize panels with faded state (50% opacity by default)
         controls.classList.add('faded');
         
@@ -481,6 +552,9 @@
         
         controls.addEventListener('mouseenter', () => controls.classList.remove('faded'));
         controls.addEventListener('mouseleave', () => controls.classList.add('faded'));
+        header.addEventListener('mouseenter', showUiForAWhile);
+        controls.addEventListener('mouseenter', showUiForAWhile);
+        tipsDropdown.addEventListener('mouseenter', showUiForAWhile);
 
         const viewer = document.getElementById('viewer');
         
