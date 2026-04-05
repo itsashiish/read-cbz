@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBZ Manga Reader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-bg-strong: rgba(255, 255, 255, 0.13);
+            --glass-border: rgba(255, 255, 255, 0.24);
+            --text-color: #ecf6ff;
+            --text-muted: rgba(236, 246, 255, 0.78);
+        }
+        body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: radial-gradient(circle at 20% 15%, #30435f 0%, #141722 45%, #0b0f14 100%);
+            color: var(--text-color);
+        }
+        #container { max-width: 100%; height: 100vh; display: flex; flex-direction: column; }
+        #header {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        #header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.2px; margin-bottom: 6px; }
+        #viewer { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
+        #viewer.vertical-mode { display: block; overflow-y: auto; padding: 14px 0 20px; }
+        #image { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #viewer.vertical-mode #image { display: none; }
+        #vertical-pages { display: none; width: min(100%, 1000px); margin: 0 auto; padding: 0 12px; }
+        #viewer.vertical-mode #vertical-pages { display: block; }
+        .vertical-page { width: 100%; height: auto; display: block; background: #000; }
+        .page-separator {
+            height: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            margin: 10px 0;
+            opacity: 0.8;
+        }
+        #controls {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            border-top: 1px solid var(--glass-border);
+            flex-wrap: wrap;
+        }
+        button,
+        input[type="file"],
+        #page-input {
+            background: var(--glass-bg-strong);
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+            border-radius: 999px;
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 5px 16px rgba(0, 0, 0, 0.22);
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+            font-size: 12px;
+        }
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+            min-height: 30px;
+        }
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+        input[type="file"] {
+            padding: 4px 9px;
+            max-width: 220px;
+        }
+        input[type="file"]::file-selector-button {
+            border: 1px solid var(--glass-border);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            color: var(--text-color);
+            padding: 4px 8px;
+            margin-right: 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        #info { font-size: 12px; margin: 0 6px; color: var(--text-muted); }
+        #page-input { width: 52px; padding: 4px 7px; text-align: center; min-height: 30px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>CBZ Manga Reader</h1>
+            <input type="file" id="cbz-input" accept=".cbz" />
+        </div>
+        <div id="viewer">
+            <img id="image" alt="Manga Page" />
+            <div id="vertical-pages"></div>
+        </div>
+        <div id="controls">
+            <button id="prev-btn" onclick="prevPage()">← Previous</button>
+            <input type="number" id="page-input" min="1" onkeypress="if(event.key==='Enter') goToPage()" />
+            <button id="goto-btn" onclick="goToPage()">Go</button>
+            <button id="vertical-btn" onclick="toggleVerticalMode()">Vertical: Off</button>
+            <span id="info">Page 1 of 1</span>
+            <button id="next-btn" onclick="nextPage()">Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let pages = [];
+        let currentPage = 0;
+        let isVerticalMode = false;
+
+        document.getElementById('cbz-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (window.JSZip) {
+                loadCBZ(file);
+            } else {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                script.onload = () => loadCBZ(file);
+                document.head.appendChild(script);
+            }
+        });
+
+        async function loadCBZ(file) {
+            try {
+                const JSZip = window.JSZip;
+                const zip = await JSZip.loadAsync(file);
+                pages = [];
+
+                const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+                const fileList = [];
+
+                zip.forEach((path) => {
+                    const ext = path.toLowerCase().match(/(\.[^./]+)$/);
+                    if (ext && imageExtensions.includes(ext[0])) {
+                        fileList.push(path);
+                    }
+                });
+
+                fileList.sort();
+
+                for (const path of fileList) {
+                    const blob = await zip.file(path).async('blob');
+                    const url = URL.createObjectURL(blob);
+                    pages.push(url);
+                }
+
+                if (pages.length > 0) {
+                    currentPage = 0;
+                    renderVerticalPages();
+                    displayPage();
+                } else {
+                    alert('No images found in CBZ file');
+                }
+            } catch (err) {
+                alert('Error reading CBZ file: ' + err.message);
+            }
+        }
+
+        function renderVerticalPages() {
+            const container = document.getElementById('vertical-pages');
+            container.innerHTML = '';
+
+            pages.forEach((src, index) => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = `Manga Page ${index + 1}`;
+                img.className = 'vertical-page';
+                img.loading = 'lazy';
+                container.appendChild(img);
+
+                if (index < pages.length - 1) {
+                    const separator = document.createElement('div');
+                    separator.className = 'page-separator';
+                    container.appendChild(separator);
+                }
+            });
+        }
+
+        function displayPage() {
+            if (pages.length === 0) return;
+
+            if (isVerticalMode) {
+                document.getElementById('info').textContent = `Vertical mode · ${pages.length} pages`;
+                document.getElementById('page-input').value = 1;
+                updateControls();
+                return;
+            }
+
+            document.getElementById('image').src = pages[currentPage];
+            document.getElementById('page-input').value = currentPage + 1;
+            document.getElementById('info').textContent = `Page ${currentPage + 1} of ${pages.length}`;
+            updateControls();
+        }
+
+        function nextPage() {
+            if (isVerticalMode) return;
+            if (currentPage < pages.length - 1) {
+                currentPage++;
+                displayPage();
+            }
+        }
+
+        function prevPage() {
+            if (isVerticalMode) return;
+            if (currentPage > 0) {
+                currentPage--;
+                displayPage();
+            }
+        }
+
+        function goToPage() {
+            if (isVerticalMode) return;
+            const input = parseInt(document.getElementById('page-input').value) - 1;
+            if (input >= 0 && input < pages.length) {
+                currentPage = input;
+                displayPage();
+            }
+        }
+
+        function toggleVerticalMode() {
+            isVerticalMode = !isVerticalMode;
+            const viewer = document.getElementById('viewer');
+            const verticalBtn = document.getElementById('vertical-btn');
+
+            viewer.classList.toggle('vertical-mode', isVerticalMode);
+            verticalBtn.textContent = isVerticalMode ? 'Vertical: On' : 'Vertical: Off';
+
+            if (isVerticalMode) {
+                const container = document.getElementById('vertical-pages');
+                if (!container.hasChildNodes()) {
+                    renderVerticalPages();
+                }
+                viewer.scrollTop = 0;
+            }
+
+            displayPage();
+        }
+
+        function updateControls() {
+            const disablePagedControls = isVerticalMode || pages.length === 0;
+            document.getElementById('prev-btn').disabled = disablePagedControls || currentPage === 0;
+            document.getElementById('next-btn').disabled = disablePagedControls || currentPage === pages.length - 1;
+            document.getElementById('goto-btn').disabled = disablePagedControls;
+            document.getElementById('page-input').disabled = disablePagedControls;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') prevPage();
+            if (e.key === 'ArrowRight') nextPage();
+        });
+    </script>
+</body>
+</html>
