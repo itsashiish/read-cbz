@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AanduGaandu Reader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-bg-strong: rgba(255, 255, 255, 0.14);
+            --glass-border: rgba(255, 255, 255, 0.24);
+            --text-color: #ecf6ff;
+            --text-muted: rgba(236, 246, 255, 0.78);
+            --accent: #7bd4ff;
+        }
+        body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: radial-gradient(circle at 18% 12%, #2e4466 0%, #181f32 42%, #0a0d14 100%);
+            color: var(--text-color);
+        }
+        html, body { scroll-behavior: smooth; }
+        #container { max-width: 100%; height: 100vh; display: flex; flex-direction: column; }
+        #header {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        #header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.4px; margin-bottom: 6px; }
+        #viewer { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; position: relative; }
+        #viewer.mode-vertical {
+            display: block;
+            overflow-y: auto;
+            padding: 14px 0 20px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        #image { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #viewer.mode-vertical #image { display: none; }
+        #vertical-pages { display: none; width: min(100%, 1000px); margin: 0 auto; padding: 0 12px; }
+        #viewer.mode-vertical #vertical-pages { display: block; }
+        .vertical-page { width: 100%; height: auto; display: block; background: #000; }
+        .page-separator {
+            height: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.22);
+            margin: 10px 0;
+            opacity: 0.8;
+        }
+        #controls {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            border-top: 1px solid var(--glass-border);
+            flex-wrap: wrap;
+        }
+        button,
+        input[type="file"],
+        #page-input {
+            background: var(--glass-bg-strong);
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+            border-radius: 999px;
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 5px 16px rgba(0, 0, 0, 0.22);
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+            font-size: 12px;
+        }
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+            min-height: 30px;
+        }
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+            transform: translateY(-1px);
+        }
+        button:focus,
+        #page-input:focus,
+        input[type="file"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(123, 212, 255, 0.2);
+        }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+        input[type="file"] {
+            padding: 4px 9px;
+            max-width: 220px;
+        }
+        input[type="file"]::file-selector-button {
+            border: 1px solid var(--glass-border);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            color: var(--text-color);
+            padding: 4px 8px;
+            margin-right: 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        #info { font-size: 12px; margin: 0 6px; color: var(--text-muted); }
+        #page-input { width: 52px; padding: 4px 7px; text-align: center; min-height: 30px; }
+        #header > div {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        #drive-url {
+            max-width: 280px;
+            padding: 4px 9px;
+        }
+        #chapter-toast {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(15, 23, 38, 0.72);
+            border: 1px solid rgba(123, 212, 255, 0.4);
+            color: #dff4ff;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            letter-spacing: 0.2px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: translateY(-6px);
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 5;
+        }
+        #chapter-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 860px) {
+            #header h1 { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>AanduGaandu Reader</h1>
+            <div>
+                <input type="file" id="cbz-input" accept=".cbz" />
+                <div style="display: flex; gap: 4px; align-items: center;">
+                    <input type="text" id="drive-url" placeholder="Google Drive CBZ link" />
+                    <button id="drive-load-btn" onclick="loadFromGoogleDrive()">Load</button>
+                </div>
+            </div>
+        </div>
+        <div id="viewer">
+            <img id="image" alt="Manga Page" />
+            <div id="vertical-pages"></div>
+            <div id="chapter-toast"></div>
+        </div>
+        <div id="controls">
+            <button id="prev-btn" onclick="prevPage()">← Previous</button>
+            <input type="number" id="page-input" min="1" onkeypress="if(event.key==='Enter') goToPage()" />
+            <button id="goto-btn" onclick="goToPage()">Go</button>
+            <button id="mode-btn" onclick="toggleReadingMode()">Mode: Single</button>
+            <span id="info">Page 1 of 1</span>
+            <button id="next-btn" onclick="nextPage()">Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let pages = [];
+        let pagePaths = [];
+        let chapterLabels = [];
+        let chapterStartPages = new Set();
+        let currentPage = 0;
+        let readingMode = 'single';
+        let smoothScrollTarget = 0;
+        let smoothScrollFrame = null;
+        let chapterToastTimer = null;
+
+        document.getElementById('cbz-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            script.onload = () => loadCBZ(file);
+            document.head.appendChild(script);
+        });
+
+        async function loadFromGoogleDrive() {
+            const urlInput = document.getElementById('drive-url');
+            const driveUrl = urlInput.value.trim();
+            if (!driveUrl) {
+                alert('Please enter a Google Drive URL');
+                return;
+            }
+
+            try {
+                document.getElementById('drive-load-btn').disabled = true;
+                document.getElementById('drive-load-btn').textContent = 'Loading...';
+
+                const driveInfo = extractGoogleDriveInfo(driveUrl);
+                if (!driveInfo.fileId) {
+                    alert('Invalid Google Drive URL. Please use a full sharing link or file link.');
+                    document.getElementById('drive-load-btn').disabled = false;
+                    document.getElementById('drive-load-btn').textContent = 'Load';
+                    return;
+                }
+
+                const resourceKeyPart = driveInfo.resourceKey ? `&resourcekey=${encodeURIComponent(driveInfo.resourceKey)}` : '';
+                const baseCandidates = [
+                    `https://drive.usercontent.google.com/download?id=${driveInfo.fileId}&export=download&confirm=t${resourceKeyPart}`,
+                    `https://drive.google.com/uc?id=${driveInfo.fileId}&export=download&confirm=t${resourceKeyPart}`,
+                    `https://drive.google.com/uc?export=download&id=${driveInfo.fileId}${resourceKeyPart}`
+                ];
+
+                const proxyPrefixes = [
+                    'https://api.allorigins.win/raw?url=',
+                    'https://corsproxy.io/?',
+                    'https://cors-anywhere.herokuapp.com/',
+                    'https://thingproxy.freeboard.io/fetch/'
+                ];
+
+                const candidates = [...baseCandidates];
+                for (const prefix of proxyPrefixes) {
+                    for (const baseUrl of baseCandidates) {
+                        candidates.push(`${prefix}${encodeURIComponent(baseUrl)}`);
+                    }
+                }
+
+                let blob = null;
+
+                for (const candidate of candidates) {
+                    try {
+                        const response = await fetch(candidate);
+                        if (!response.ok) continue;
+
+                        const candidateBlob = await response.blob();
+                        const contentType = candidateBlob.type || '';
+                        const isHtml = contentType.includes('text/html');
+                        if (candidateBlob.size > 1024 && !isHtml) {
+                            blob = candidateBlob;
+                            break;
+                        }
+                    } catch (e) {
+                        // Try the next candidate URL.
+                    }
+                }
+
+                if (!blob || blob.size === 0) {
+                    try {
+                        blob = await tryXMLHttpRequest(baseCandidates[0]);
+                    } catch (e) {
+                        // XMLHttpRequest also failed
+                    }
+                }
+
+                if (!blob || blob.size === 0) {
+                    const downloadUrl = `https://drive.google.com/uc?export=download&id=${driveInfo.fileId}${resourceKeyPart}`;
+                    const message = `Could not auto-download due to browser CORS restrictions.\n\nClick OK to open Drive's download page, then upload the downloaded CBZ file to this reader.`;
+                    if (confirm(message)) {
+                        window.open(downloadUrl, '_blank');
+                    }
+                    document.getElementById('drive-load-btn').disabled = false;
+                    document.getElementById('drive-load-btn').textContent = 'Load';
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                script.onload = () => loadCBZ(blob, driveUrl);
+                document.head.appendChild(script);
+
+                urlInput.value = '';
+            } catch (err) {
+                alert('Error loading from Google Drive: ' + err.message);
+                document.getElementById('drive-load-btn').disabled = false;
+                document.getElementById('drive-load-btn').textContent = 'Load';
+            }
+        }
+
+        function tryXMLHttpRequest(url) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.responseType = 'blob';
+                xhr.onload = function() {
+                    if (xhr.status === 200 && xhr.response.size > 1024) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error('XHR failed or empty response'));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('XHR network error'));
+                xhr.ontimeout = () => reject(new Error('XHR timeout'));
+                xhr.timeout = 15000;
+                xhr.send();
+            });
+        }
+
+        function extractGoogleDriveInfo(url) {
+            const trimmed = url.trim();
+            const info = { fileId: null, resourceKey: null };
+
+            try {
+                const parsed = new URL(trimmed);
+                const pathnameMatch = parsed.pathname.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+                if (pathnameMatch && pathnameMatch[1]) {
+                    info.fileId = pathnameMatch[1];
+                }
+
+                if (!info.fileId) {
+                    const idParam = parsed.searchParams.get('id');
+                    if (idParam) info.fileId = idParam;
+                }
+
+                const resourceKey = parsed.searchParams.get('resourcekey');
+                if (resourceKey) info.resourceKey = resourceKey;
+            } catch (e) {
+                const rawIdMatch = trimmed.match(/^\s*([a-zA-Z0-9-_]+)\s*$/);
+                if (rawIdMatch && rawIdMatch[1]) {
+                    info.fileId = rawIdMatch[1];
+                }
+            }
+
+            return info;
+        }
+
+        const viewer = document.getElementById('viewer');
+        viewer.addEventListener('wheel', onVerticalWheel, { passive: false });
+
+        function onVerticalWheel(e) {
+            if (readingMode !== 'vertical') return;
+
+            e.preventDefault();
+
+            smoothScrollTarget += e.deltaY;
+            const maxScroll = viewer.scrollHeight - viewer.clientHeight;
+            smoothScrollTarget = Math.max(0, Math.min(maxScroll, smoothScrollTarget));
+
+            if (!smoothScrollFrame) {
+                smoothScrollFrame = requestAnimationFrame(stepSmoothScroll);
+            }
+        }
+
+        function stepSmoothScroll() {
+            const delta = smoothScrollTarget - viewer.scrollTop;
+            viewer.scrollTop += delta * 0.2;
+
+            if (Math.abs(delta) > 0.6) {
+                smoothScrollFrame = requestAnimationFrame(stepSmoothScroll);
+            } else {
+                viewer.scrollTop = smoothScrollTarget;
+                smoothScrollFrame = null;
+            }
+        }
+
+        async function loadCBZ(file) {
+            try {
+                const JSZip = window.JSZip;
+                const zip = await JSZip.loadAsync(file);
+                pages = [];
+                pagePaths = [];
+                chapterLabels = [];
+                chapterStartPages = new Set();
+
+                const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+                const fileList = [];
+
+                zip.forEach((path) => {
+                    const ext = path.toLowerCase().match(/\.[^.]*$/);
+                    if (ext && imageExtensions.includes(ext[0])) {
+                        fileList.push(path);
+                    }
+                });
+
+                fileList.sort();
+
+                for (const path of fileList) {
+                    const blob = await zip.file(path).async('blob');
+                    const url = URL.createObjectURL(blob);
+                    pages.push(url);
+                    pagePaths.push(path);
+                }
+
+                buildChapterMetadata(pagePaths);
+
+                if (pages.length > 0) {
+                    currentPage = 0;
+                    renderVerticalPages();
+                    applyModeClass();
+                    displayPage();
+                } else {
+                    alert('No images found in CBZ file');
+                }
+                document.getElementById('drive-load-btn').disabled = false;
+                document.getElementById('drive-load-btn').textContent = 'Load';
+            } catch (err) {
+                alert('Error reading CBZ file: ' + err.message);
+                document.getElementById('drive-load-btn').disabled = false;
+                document.getElementById('drive-load-btn').textContent = 'Load';
+            }
+        }
+
+        function renderVerticalPages() {
+            const container = document.getElementById('vertical-pages');
+            container.innerHTML = '';
+
+            pages.forEach((src, index) => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = `Manga Page ${index + 1}`;
+                img.className = 'vertical-page';
+                img.loading = 'lazy';
+                img.dataset.page = index;
+                container.appendChild(img);
+
+                if (index < pages.length - 1) {
+                    const separator = document.createElement('div');
+                    separator.className = 'page-separator';
+                    container.appendChild(separator);
+                }
+            });
+        }
+
+        function buildChapterMetadata(paths) {
+            chapterLabels = [];
+            chapterStartPages = new Set([0]);
+
+            let previousKey = '';
+
+            paths.forEach((path, index) => {
+                const chapter = guessChapterFromPath(path, index);
+                chapterLabels[index] = chapter.label;
+
+                if (index === 0) {
+                    previousKey = chapter.key;
+                    return;
+                }
+
+                if (chapter.key !== previousKey) {
+                    chapterStartPages.add(index);
+                }
+
+                previousKey = chapter.key;
+            });
+        }
+
+        function guessChapterFromPath(path, index) {
+            const normalizedPath = path.replace(/\\/g, '/');
+            const segments = normalizedPath.split('/').filter(Boolean);
+            const filename = segments.length > 0 ? segments[segments.length - 1] : normalizedPath;
+            const directory = segments.length > 1 ? segments[segments.length - 2] : '';
+            const basename = filename.replace(/\.[^.]+$/, '');
+
+            const chapterMatch = normalizedPath.match(/(?:ch(?:apter)?|ep(?:isode)?|vol(?:ume)?)[\s._-]*([0-9]+(?:\.[0-9]+)?)/i);
+            if (chapterMatch) {
+                const value = chapterMatch[1];
+                return { key: `chapter-${value}`, label: `Chapter ${value}` };
+            }
+
+            if (directory) {
+                const cleanedDirectory = cleanLabel(directory);
+                if (cleanedDirectory) {
+                    return { key: `dir-${cleanedDirectory.toLowerCase()}`, label: cleanedDirectory };
+                }
+            }
+
+            const basePrefix = basename.replace(/(?:^|[\s._-])(p|pg|page|img|image)?\s*0*\d{1,4}$/i, '');
+            const cleanedPrefix = cleanLabel(basePrefix);
+            if (cleanedPrefix) {
+                return { key: `name-${cleanedPrefix.toLowerCase()}`, label: cleanedPrefix };
+            }
+
+            return { key: 'chapter-1', label: index === 0 ? 'Chapter 1' : 'Chapter' };
+        }
+
+        function cleanLabel(value) {
+            return value
+                .replace(/[_-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function notifyChapterStart(previousPage) {
+            if (!chapterStartPages.has(currentPage) || previousPage === currentPage) {
+                return;
+            }
+
+            const label = chapterLabels[currentPage] || 'New Chapter';
+            const toast = document.getElementById('chapter-toast');
+            toast.textContent = `${label} starts`;
+            toast.classList.add('show');
+
+            if (chapterToastTimer) {
+                clearTimeout(chapterToastTimer);
+            }
+
+            chapterToastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 1300);
+        }
+
+        function applyModeClass() {
+            viewer.classList.remove('mode-single', 'mode-vertical');
+            viewer.classList.add(`mode-${readingMode}`);
+
+            const modeBtn = document.getElementById('mode-btn');
+            modeBtn.textContent = readingMode === 'vertical' ? 'Mode: Vertical' : 'Mode: Single';
+        }
+
+        function toggleReadingMode() {
+            readingMode = readingMode === 'single' ? 'vertical' : 'single';
+            applyModeClass();
+
+            if (readingMode === 'vertical') {
+                renderVerticalPages();
+                viewer.scrollTop = 0;
+                smoothScrollTarget = 0;
+            } else if (smoothScrollFrame) {
+                cancelAnimationFrame(smoothScrollFrame);
+                smoothScrollFrame = null;
+            }
+
+            displayPage();
+        }
+
+        function displayPage() {
+            if (pages.length === 0) return;
+            const previousPage = currentPage;
+
+            if (readingMode === 'vertical') {
+                const current = findCurrentVerticalPage();
+                currentPage = current;
+                document.getElementById('info').textContent = `Vertical ${current + 1}/${pages.length}`;
+                document.getElementById('page-input').value = current + 1;
+                notifyChapterStart(previousPage);
+                updateControls();
+                return;
+            }
+
+            document.getElementById('image').src = pages[currentPage];
+            document.getElementById('page-input').value = currentPage + 1;
+            document.getElementById('info').textContent = `Page ${currentPage + 1} of ${pages.length}`;
+            notifyChapterStart(previousPage);
+            updateControls();
+        }
+
+        function nextPage() {
+            if (pages.length === 0) return;
+
+            if (readingMode === 'vertical') {
+                smoothScrollTarget = Math.min(viewer.scrollHeight - viewer.clientHeight, viewer.scrollTop + viewer.clientHeight * 0.84);
+                if (!smoothScrollFrame) smoothScrollFrame = requestAnimationFrame(stepSmoothScroll);
+                return;
+            }
+
+            if (currentPage < pages.length - 1) {
+                currentPage = Math.min(pages.length - 1, currentPage + 1);
+                displayPage();
+            }
+        }
+
+        function prevPage() {
+            if (pages.length === 0) return;
+
+            if (readingMode === 'vertical') {
+                smoothScrollTarget = Math.max(0, viewer.scrollTop - viewer.clientHeight * 0.84);
+                if (!smoothScrollFrame) smoothScrollFrame = requestAnimationFrame(stepSmoothScroll);
+                return;
+            }
+
+            if (currentPage > 0) {
+                currentPage = Math.max(0, currentPage - 1);
+                displayPage();
+            }
+        }
+
+        function goToPage() {
+            const input = parseInt(document.getElementById('page-input').value) - 1;
+            if (input >= 0 && input < pages.length) {
+                if (readingMode === 'vertical') {
+                    currentPage = input;
+                    const target = document.querySelector(`#vertical-pages img[data-page="${input}"]`);
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    displayPage();
+                    return;
+                }
+
+                currentPage = input;
+                displayPage();
+            }
+        }
+
+        function findCurrentVerticalPage() {
+            const verticalImages = document.querySelectorAll('#vertical-pages img[data-page]');
+            const viewerTop = viewer.scrollTop;
+
+            for (let i = verticalImages.length - 1; i >= 0; i--) {
+                if (verticalImages[i].offsetTop - 16 <= viewerTop) {
+                    return parseInt(verticalImages[i].dataset.page, 10);
+                }
+            }
+
+            return 0;
+        }
+
+        function updateControls() {
+            const noPages = pages.length === 0;
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const gotoBtn = document.getElementById('goto-btn');
+            const pageInput = document.getElementById('page-input');
+
+            if (noPages) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                gotoBtn.disabled = true;
+                pageInput.disabled = true;
+                return;
+            }
+
+            if (readingMode === 'vertical') {
+                const atTop = viewer.scrollTop <= 2;
+                const atBottom = viewer.scrollTop >= viewer.scrollHeight - viewer.clientHeight - 2;
+                prevBtn.disabled = atTop;
+                nextBtn.disabled = atBottom;
+                gotoBtn.disabled = false;
+                pageInput.disabled = false;
+                return;
+            }
+
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = currentPage >= pages.length - 1;
+            gotoBtn.disabled = false;
+            pageInput.disabled = false;
+        }
+
+        viewer.addEventListener('scroll', () => {
+            if (readingMode !== 'vertical') return;
+            displayPage();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevPage();
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextPage();
+        });
+
+        applyModeClass();
+        updateControls();
+    </script>
+</body>
+</html>
