@@ -565,27 +565,6 @@
             setImageZoom(imageZoom * zoomFactor);
         }, { passive: false });
         
-        viewer.addEventListener('mousedown', (e) => {
-            if (e.button === 1 && readingMode === 'vertical') {
-                e.preventDefault();
-                const startY = e.clientY;
-                const startScroll = viewer.scrollTop;
-                
-                function onMouseMove(moveEvent) {
-                    const deltaY = moveEvent.clientY - startY;
-                    viewer.scrollTop = startScroll - deltaY;
-                }
-                
-                function onMouseUp() {
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-                }
-                
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-            }
-        }, { passive: false });
-
         async function loadCBZ(file) {
             try {
                 const JSZip = window.JSZip;
